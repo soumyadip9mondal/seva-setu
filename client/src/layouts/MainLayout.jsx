@@ -47,7 +47,6 @@ const LANDING_NAV = [
   { href: '#features',  label: 'Features' },
   { href: '#workflow',  label: 'How It Works' },
   { href: '#roles',     label: 'Roles' },
-  { href: '#about',     label: 'About' },
 ];
 
 const MainLayout = ({ children }) => {
