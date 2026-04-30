@@ -21,10 +21,17 @@ const HeroSection = () => {
                 Start Coordinating
                 <ArrowRight aria-hidden="true" size={18} />
               </Link>
-              <Link to="#impact" className="btn-ghost">
+              <a 
+                href="#real-impact" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById('real-impact')?.scrollIntoView({ behavior: 'smooth' });
+                }} 
+                className="btn-ghost"
+              >
                 See Real Impact
                 <Send aria-hidden="true" size={18} />
-              </Link>
+              </a>
             </div>
             
             <div className="hero-social-proof">

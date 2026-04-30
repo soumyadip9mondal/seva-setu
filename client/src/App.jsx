@@ -6,6 +6,7 @@ import Logo from './components/Logo';
 import ProtectedRoute from './components/ProtectedRoute';
 
 import ChatWidget from './components/ChatWidget';
+import { useAuth } from './hooks/useAuth';
 
 // Lazy load all pages for performance and consistent bundle chunking
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -33,6 +34,8 @@ const PageLoader = () => (
 );
 
 function App() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <ErrorBoundary>
       <Router>
@@ -123,7 +126,7 @@ function App() {
 
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
-          <ChatWidget />
+          {isAuthenticated && <ChatWidget />}
         </Suspense>
       </Router>
     </ErrorBoundary>

@@ -7,6 +7,7 @@ import RolesSection from '../components/landing/RolesSection';
 import ImpactSection from '../components/landing/ImpactSection';
 import TrustSection from '../components/landing/TrustSection';
 import FinalCtaSection from '../components/landing/FinalCtaSection';
+import RealImpactSection from '../components/landing/RealImpactSection';
 
 const LandingPage = () => (
   <MainLayout>
@@ -17,6 +18,7 @@ const LandingPage = () => (
     <RolesSection />
     <TrustSection />
     <ImpactSection />
+    <RealImpactSection />
     <FinalCtaSection />
   </MainLayout>
 );

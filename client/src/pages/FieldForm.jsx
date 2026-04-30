@@ -2,14 +2,19 @@ import React, { useState, useRef } from 'react';
 import {
   MapPin, Send, Users, AlertTriangle,
   CheckCircle2, Crosshair, Loader2, Clock3, Camera, X,
-  Navigation, ShieldCheck, Heart, Utensils, Home, Anchor, Package, Upload
+  Navigation, ShieldCheck, Heart, Utensils, Home, Anchor, Package, Upload,
+  MessageCircle, Copy, Check, ExternalLink
 } from 'lucide-react';
 import { useFieldForm } from '../hooks/useFieldForm';
 import MainLayout from '../layouts/MainLayout';
 import CameraWatermark from '../components/CameraWatermark';
 
+const TWILIO_WHATSAPP_NUMBER = '+1 415 523 8886';
+const TWILIO_SANDBOX_CODE = 'join gravity-railroad';
+
 const FieldForm = () => {
   const [showCamera, setShowCamera] = useState(false);
+  const [copiedField, setCopiedField] = useState(null);
   const galleryInputRef = useRef(null);
   const {
     formData, loading, locLoading, success, successMessage,
@@ -447,6 +452,225 @@ const FieldForm = () => {
               SevaSetu · Secured Field Reporting
             </p>
           </form>
+
+          {/* ── OR Divider ──────────────────────────────────────────── */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '1rem',
+            margin: '1.75rem 0',
+          }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(15, 23, 29, 0.1)' }} />
+            <span style={{
+              fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8',
+              textTransform: 'uppercase', letterSpacing: '0.1em',
+            }}>
+              or report via WhatsApp
+            </span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(15, 23, 29, 0.1)' }} />
+          </div>
+
+          {/* ── WhatsApp Reporting Section ─────────────────────────── */}
+          <div className="card" style={{
+            padding: '2rem 1.5rem',
+            border: '1px solid rgba(37, 211, 102, 0.2)',
+            background: 'linear-gradient(135deg, rgba(37, 211, 102, 0.03), rgba(255,255,255,0))',
+            textAlign: 'center',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
+              marginBottom: '1.5rem',
+            }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '50%',
+                background: 'rgba(37, 211, 102, 0.1)',
+                border: '1px solid rgba(37, 211, 102, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <MessageCircle style={{ width: '24px', height: '24px', color: '#25d366' }} />
+              </div>
+              <h2 style={{
+                fontSize: '1.15rem', fontWeight: 800, color: '#0f171d',
+                letterSpacing: '-0.02em', margin: 0,
+              }}>
+                Send a WhatsApp Message
+              </h2>
+              <p style={{
+                fontSize: '0.82rem', color: '#64748b', lineHeight: 1.5, margin: 0,
+                maxWidth: '380px',
+              }}>
+                Use WhatsApp and send a message from your device to report an emergency via our Twilio-powered bot
+              </p>
+            </div>
+
+            {/* Step 1: Phone Number */}
+            <div style={{ marginBottom: '1.15rem' }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8',
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                marginBottom: '0.5rem',
+              }}>
+                WhatsApp Number
+              </p>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                background: '#f8fafc', border: '1px solid rgba(15, 23, 29, 0.1)',
+                borderRadius: '0.75rem', padding: '0.65rem 1.15rem',
+              }}>
+                <span style={{ fontSize: '1.15rem' }}>🟢</span>
+                <span style={{
+                  fontSize: '1.05rem', fontWeight: 700, color: '#0f171d',
+                  letterSpacing: '0.02em', fontFamily: "'Inter', system-ui, sans-serif",
+                }}>
+                  {TWILIO_WHATSAPP_NUMBER}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(TWILIO_WHATSAPP_NUMBER);
+                    setCopiedField('phone');
+                    setTimeout(() => setCopiedField(null), 2000);
+                  }}
+                  title="Copy phone number"
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: '4px', borderRadius: '6px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    color: copiedField === 'phone' ? '#25d366' : '#94a3b8',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  {copiedField === 'phone' ? (
+                    <Check style={{ width: '16px', height: '16px' }} />
+                  ) : (
+                    <Copy style={{ width: '16px', height: '16px' }} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2: Sandbox Code */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8',
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                marginBottom: '0.5rem',
+              }}>
+                with code
+              </p>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                background: '#f8fafc', border: '1px solid rgba(15, 23, 29, 0.1)',
+                borderRadius: '0.75rem', padding: '0.65rem 1.15rem',
+              }}>
+                <span style={{
+                  fontSize: '1rem', fontWeight: 800, color: '#0f171d',
+                  fontFamily: "'Inter', system-ui, sans-serif",
+                }}>
+                  {TWILIO_SANDBOX_CODE}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(TWILIO_SANDBOX_CODE);
+                    setCopiedField('code');
+                    setTimeout(() => setCopiedField(null), 2000);
+                  }}
+                  title="Copy join code"
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: '4px', borderRadius: '6px', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                    color: copiedField === 'code' ? '#25d366' : '#94a3b8',
+                    transition: 'color 0.2s',
+                  }}
+                >
+                  {copiedField === 'code' ? (
+                    <Check style={{ width: '16px', height: '16px' }} />
+                  ) : (
+                    <Copy style={{ width: '16px', height: '16px' }} />
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Open WhatsApp Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const phone = TWILIO_WHATSAPP_NUMBER.replace(/\s/g, '');
+                const message = encodeURIComponent(TWILIO_SANDBOX_CODE);
+                window.open(`https://wa.me/${phone}?text=${message}`, '_blank');
+              }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                gap: '0.55rem',
+                background: '#0a652bcb', color: '#ffffff',
+                border: 'none', borderRadius: '10px',
+                padding: '0.85rem 2.25rem',
+                fontSize: '0.9rem', fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 6px 20px rgba(37, 211, 102, 0.3)',
+                transition: 'all 0.2s ease',
+                letterSpacing: '0.01em',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 8px 28px rgba(37, 211, 102, 0.5)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(37, 211, 102, 0.3)';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              <MessageCircle style={{ width: '18px', height: '18px' }} />
+              Open WhatsApp
+              <ExternalLink style={{ width: '14px', height: '14px', opacity: 0.8 }} />
+            </button>
+
+            {/* Step 3: Instructions */}
+            <div style={{
+              marginTop: '1.5rem',
+              padding: '1rem 1.15rem',
+              background: 'rgba(37, 211, 102, 0.05)',
+              border: '1px solid rgba(37, 211, 102, 0.15)',
+              borderRadius: '0.75rem',
+              textAlign: 'left',
+            }}>
+              <p style={{
+                fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8',
+                textTransform: 'uppercase', letterSpacing: '0.1em',
+                marginBottom: '0.4rem',
+              }}>
+                How it works
+              </p>
+              <p style={{
+                fontSize: '0.85rem', color: '#475569', lineHeight: 1.7,
+                margin: 0,
+              }}>
+                After joining the Twilio sandbox, type{' '}
+                <strong style={{
+                  color: '#2d6148', background: 'rgba(45, 97, 72, 0.08)',
+                  padding: '0.15rem 0.5rem', borderRadius: '4px',
+                  fontSize: '0.82rem', fontWeight: 800,
+                }}>Help</strong>{' '}
+                or{' '}
+                <strong style={{
+                  color: '#2d6148', background: 'rgba(45, 97, 72, 0.08)',
+                  padding: '0.15rem 0.5rem', borderRadius: '4px',
+                  fontSize: '0.82rem', fontWeight: 800,
+                }}>Report</strong>{' '}
+                to begin reporting an emergency. The bot will guide you through each step — incident type, location, people affected, and GPS coordinates.
+              </p>
+            </div>
+
+            {/* Sandbox Note */}
+            <p style={{
+              fontSize: '0.68rem', color: '#94a3b8', marginTop: '1rem',
+              lineHeight: 1.5, fontStyle: 'italic',
+            }}>
+              ⚠️ This uses the Twilio Sandbox. You must first send the join code above to activate the WhatsApp connection.
+            </p>
+          </div>
         </div>
       </div>
 
