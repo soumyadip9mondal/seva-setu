@@ -9,8 +9,8 @@ import { useFieldForm } from '../hooks/useFieldForm';
 import MainLayout from '../layouts/MainLayout';
 import CameraWatermark from '../components/CameraWatermark';
 
-const TWILIO_WHATSAPP_NUMBER = '+1 415 523 8886';
-const TWILIO_SANDBOX_CODE = 'join gravity-railroad';
+const TWILIO_WHATSAPP_NUMBER = import.meta.env.VITE_TWILIO_WHATSAPP_NUMBER ;
+const TWILIO_SANDBOX_CODE = import.meta.env.VITE_TWILIO_SANDBOX_CODE ;
 
 const FieldForm = () => {
   const [showCamera, setShowCamera] = useState(false);
