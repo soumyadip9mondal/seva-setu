@@ -109,8 +109,12 @@ ALL_LABELS = list(LABEL_MAP.keys())
 
 
 # ══════════════════════════════════════════════════════════════════════
-# HEALTH CHECK
+# HEALTH CHECK & ROOT
 # ══════════════════════════════════════════════════════════════════════
+@app.get("/")
+async def root():
+    return {"message": "SevaSetu AI Service is running", "docs_url": "/docs"}
+
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "model": MODEL_ID, "device": device}
