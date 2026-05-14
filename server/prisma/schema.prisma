@@ -129,6 +129,7 @@ model Need {
   imageUrl               String?    @map("image_url")
   status                 NeedStatus @default(pending)
   rejectionReason        String?    @map("rejection_reason")
+  verificationResult     Json?      @map("verification_result")
   isDisasterZone         Boolean    @default(false) @map("is_disaster_zone")
   reportedBy             String?    @map("reported_by") @db.Uuid
   createdAt              DateTime   @default(now()) @map("created_at")
@@ -153,6 +154,7 @@ model Task {
   completedAt         DateTime?  @map("completed_at")
   completionImageUrl  String?    @map("completion_image_url")
   isCompletionVerified Boolean   @default(false) @map("is_completion_verified")
+  verificationResult   Json?      @map("verification_result")
   notes               String?
 
   need              Need @relation(fields: [needId], references: [id], onDelete: Cascade)
