@@ -12,20 +12,24 @@ const { calculateScore } = require('../services/scoringService');
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000';
 
 const aiWorker = new Worker('ai-verification', async (job) => {
-  const { type, id, filePath, fileName, metadata } = job.data;
-  console.log(`[Worker] Processing ${type} job for ID: ${id}`);
+  const { type, id, imageUrl, fileName, metadata } = job.data;
+  console.log(`[Worker] Processing ${type} job for ID: ${id} from URL: ${imageUrl}`);
 
   let errors = [];
   let isVerified = false;
-  let imageUrl = null;
+  let finalImageUrl = imageUrl; // Default to the one passed
   let photoHasGps = false;
   let geoTagPassed = false;
 
   try {
-    // 1. GPS Check
+    // --- 0. Download image to Buffer (replaces local file dependency) ---
+    const response = await axios.get(imageUrl, { responseType: 'arraybuffer' });
+    const imageBuffer = Buffer.from(response.data);
+
+    // 1. GPS Check (using buffer)
     if (metadata && metadata.lat && metadata.lng) {
       try {
-        const exifrData = await exifr.parse(filePath, { gps: true });
+        const exifrData = await exifr.parse(imageBuffer, { gps: true });
         let photoLat = exifrData?.latitude;
         let photoLng = exifrData?.longitude;
 
@@ -55,10 +59,10 @@ const aiWorker = new Worker('ai-verification', async (job) => {
       }
     }
 
-    // 2. AI Content Check
+    // 2. AI Content Check (using buffer)
     try {
       const form = new FormData();
-      form.append('file', fs.createReadStream(filePath), { filename: fileName });
+      form.append('file', imageBuffer, { filename: fileName });
       form.append('upload_type', type === 'task' ? 'PROOF_OF_RELIEF' : 'ISSUE_REGISTRATION');
 
       const aiResponse = await axios.post(`${AI_SERVICE_URL}/verify-image`, form, {
@@ -73,21 +77,11 @@ const aiWorker = new Worker('ai-verification', async (job) => {
       errors.push('AI service temporarily unavailable.');
     }
 
-    // 3. Upload to ImageKit if verified
+    // 3. Status Finalization
     const finalVerified = isVerified && errors.length === 0;
-    if (finalVerified) {
-      try {
-        const uploadResponse = await imagekit.upload({
-          file: fs.createReadStream(filePath),
-          fileName: fileName,
-          folder: type === 'task' ? '/sevasetu/tasks' : '/sevasetu/needs'
-        });
-        imageUrl = uploadResponse.url;
-      } catch (ikErr) {
-        console.error(`[Worker] ImageKit upload failed:`, ikErr.message);
-        errors.push('Failed to save image to cloud storage.');
-      }
-    }
+    
+    // Note: imageUrl is already set from the initial upload in the route handler.
+    // If verification fails, we still keep the image for audit logs.
 
     // 4. Update Database
     if (type === 'incident') {
@@ -102,7 +96,7 @@ const aiWorker = new Worker('ai-verification', async (job) => {
         where: { id },
         data: {
           status: finalVerified ? 'open' : 'rejected',
-          imageUrl: imageUrl,
+          imageUrl: finalImageUrl,
           isVerified: finalVerified,
           urgencyScore: newScore,
             verificationResult: {
@@ -126,7 +120,7 @@ const aiWorker = new Worker('ai-verification', async (job) => {
           where: { id },
           data: {
             status: finalVerified ? 'completed' : 'in_progress',
-            completionImageUrl: imageUrl,
+            completionImageUrl: finalImageUrl,
             completedAt: finalVerified ? new Date() : null,
             isCompletionVerified: finalVerified,
             verificationResult: {
@@ -156,10 +150,6 @@ const aiWorker = new Worker('ai-verification', async (job) => {
 
   } catch (err) {
     console.error(`[Worker] Job failed:`, err);
-  } finally {
-    if (fs.existsSync(filePath)) {
-      try { fs.unlinkSync(filePath); } catch (e) {}
-    }
   }
 }, { connection, concurrency: 5 });
 
