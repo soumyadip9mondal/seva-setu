@@ -89,7 +89,7 @@ export default function ChatWidget() {
       <button
         onClick={() => setIsOpen(o => !o)}
         style={{
-          position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999,
+          position: 'fixed', bottom: '80px', right: '24px', zIndex: 9999,
           width: '64px', height: '64px', borderRadius: '18px',
           background: '#ffffff', border: '1px solid #e5e7eb',
           cursor: 'pointer',
@@ -115,7 +115,7 @@ export default function ChatWidget() {
       {/* Chat Window */}
       {isOpen && (
         <div style={{
-          position: 'fixed', bottom: '104px', right: '24px', zIndex: 9998,
+          position: 'fixed', bottom: '160px', right: '24px', zIndex: 9998,
           width: '400px', maxWidth: 'calc(100vw - 48px)',
           height: '600px', maxHeight: 'calc(100vh - 140px)',
           background: 'rgba(255, 255, 255, 0.95)',
