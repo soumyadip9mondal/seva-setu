@@ -1,6 +1,9 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const prisma = require('../config/db');
 const auth = require('../middleware/auth');
+const imagekit = require('../config/imagekit');
 const { aiVerificationQueue } = require('../config/queue');
 
 const router = express.Router();
@@ -87,13 +90,10 @@ router.patch('/:id/checkin', auth, async (req, res) => {
   }
 });
 
-const fs = require('fs');
-const path = require('path');
 const multer = require('multer');
 const axios = require('axios');
 const FormData = require('form-data');
 const exifr = require('exifr');
-const imagekit = require('../config/imagekit');
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
@@ -135,11 +135,19 @@ router.patch('/:id/complete', auth, upload.single('image'), async (req, res) => 
     `;
     const { lat, lng } = needLocation[0] || { lat: 0, lng: 0 };
 
-    // --- 1. Queue the AI Verification Job ---
+    // --- 1. Upload to ImageKit IMMEDIATELY (prevents ENOENT in worker) ---
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const uploadResponse = await imagekit.upload({
+      file: fileBuffer,
+      fileName: req.file.filename,
+      folder: '/sevasetu/tasks'
+    });
+
+    // --- 2. Queue the AI Verification Job with the cloud URL ---
     await aiVerificationQueue.add('verify-task', {
       type: 'task',
       id: task.id,
-      filePath: req.file.path,
+      imageUrl: uploadResponse.url,
       fileName: req.file.filename,
       metadata: { 
         lat: Number(lat), 
@@ -148,6 +156,9 @@ router.patch('/:id/complete', auth, upload.single('image'), async (req, res) => 
         browserLng: req.body.browserLng ? Number(req.body.browserLng) : null
       }
     });
+
+    // Cleanup local file immediately
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
 
     res.status(202).json({
       message: 'Task completion submitted and queued for verification.',

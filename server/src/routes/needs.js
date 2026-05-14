@@ -78,15 +78,25 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
       return createdNeed;
     });
 
-    // --- 3. Queue the AI Verification Job ---
-    // The worker will handle EXIF, AI, ImageKit, and final DB status update.
+    // --- 3. Upload to ImageKit IMMEDIATELY (prevents ENOENT in worker) ---
+    const fileBuffer = fs.readFileSync(req.file.path);
+    const uploadResponse = await imagekit.upload({
+      file: fileBuffer,
+      fileName: req.file.filename,
+      folder: '/sevasetu/needs'
+    });
+
+    // --- 4. Queue the AI Verification Job with the cloud URL ---
     await aiVerificationQueue.add('verify-incident', {
       type: 'incident',
       id: need.id,
-      filePath: req.file.path,
+      imageUrl: uploadResponse.url,
       fileName: req.file.filename,
       metadata: { lat: Number(lat), lng: Number(lng) }
     });
+
+    // Cleanup local file immediately
+    try { fs.unlinkSync(req.file.path); } catch (e) {}
 
     // Return 202 Accepted - Frontend will poll for status
     res.status(202).json({
