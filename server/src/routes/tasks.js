@@ -143,7 +143,17 @@ router.patch('/:id/complete', auth, upload.single('image'), async (req, res) => 
       folder: '/sevasetu/tasks'
     });
 
-    // --- 2. Queue the AI Verification Job with the cloud URL ---
+    // --- 2. Reset database state for this task (clears previous failed results) ---
+    await prisma.task.update({
+      where: { id: task.id },
+      data: {
+        verificationResult: null,
+        isCompletionVerified: false,
+        status: 'in_progress' // Ensure it's not marked as completed yet
+      }
+    });
+
+    // --- 3. Queue the AI Verification Job with the cloud URL ---
     await aiVerificationQueue.add('verify-task', {
       type: 'task',
       id: task.id,
