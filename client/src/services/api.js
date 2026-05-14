@@ -50,4 +50,15 @@ api.interceptors.response.use(
   }
 );
 
+export const pollStatus = async (endpoint, condition, interval = 2000, maxAttempts = 30) => {
+  let attempts = 0;
+  while (attempts < maxAttempts) {
+    const { data } = await api.get(endpoint);
+    if (condition(data)) return data;
+    attempts++;
+    await new Promise((resolve) => setTimeout(resolve, interval));
+  }
+  throw new Error('Verification timed out. Please check the dashboard later.');
+};
+
 export default api;

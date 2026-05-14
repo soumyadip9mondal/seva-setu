@@ -11,6 +11,7 @@ import {
   acceptBroadcast,
   rejectBroadcast,
 } from '../services/volunteer';
+import { pollStatus } from '../services/api';
 import { useAuth } from './useAuth';
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
@@ -160,8 +161,26 @@ export const useVolunteerApp = () => {
   const completeTask = useCallback(async (task, imageFile) => {
     try {
       setBusyTaskId(task.task_id);
-      await completeTaskById(task.task_id, imageFile, volunteerCoords);
-      showToast('Task completed!');
+      const response = await completeTaskById(task.task_id, imageFile, volunteerCoords);
+      showToast('Verifying your submission...', 'info');
+
+      // Poll for status until it's no longer 'verifying' or 'assigned/in_progress'
+      const finalTask = await pollStatus(
+        `/tasks/${task.task_id}/status`,
+        (data) => data.status === 'completed' || data.status === 'failed'
+      );
+
+      if (finalTask.status === 'failed') {
+        throw {
+          response: {
+            data: {
+              errors: finalTask.verificationResult?.errors || ['Verification failed.']
+            }
+          }
+        };
+      }
+
+      showToast('Task verified and completed!', 'success');
       await loadData();
     } catch (err) {
       showToast('Verification failed.', 'error');

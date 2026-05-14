@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import exifr from 'exifr';
-import api from '../services/api';
+import api, { pollStatus } from '../services/api';
 import {
   clearQueuedNeedSubmission,
   getQueuedNeedSubmissions,
@@ -229,11 +229,31 @@ export const useFieldForm = () => {
           return;
         }
 
-        await api.post('/needs', form, {
+        const response = await api.post('/needs', form, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
+
+        const needId = response.data.needId;
+        setSuccessMessage('Verifying report location and content...');
+
+        // Poll for status until it's no longer 'pending'
+        const finalNeed = await pollStatus(
+          `/needs/${needId}/status`,
+          (data) => data.status !== 'pending'
+        );
+
+        if (finalNeed.status === 'rejected') {
+          throw { 
+            response: { 
+              data: { 
+                errors: finalNeed.verificationResult?.errors || ['Verification failed.'] 
+              } 
+            } 
+          };
+        }
+
         setSuccess(true);
-        setSuccessMessage('Report submitted successfully with AI verification pending.');
+        setSuccessMessage('Report verified and submitted successfully!');
       } catch (err) {
         console.error('Submission error:', err);
         // Surface the detailed verification errors from backend

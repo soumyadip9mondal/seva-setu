@@ -18,6 +18,9 @@ app.set('trust proxy', 1);
 const rateLimiter = require('./middleware/rateLimiter');
 app.use(rateLimiter);
 
+// Start Background Workers
+require('./workers/aiWorker');
+
 // ── Routes ──────────────────────────────────────────────────────────
 const authRoutes = require('./routes/auth');
 const needsRoutes = require('./routes/needs');
@@ -54,7 +57,6 @@ app.use((req, res, next) => {
 });
 
 app.use(express.json());
-app.use('/uploads', express.static(require('path').join(__dirname, '../uploads')));
 
 // ── Root Route for Deployment Testing ───────────────────────────────
 app.get('/', async (req, res) => {

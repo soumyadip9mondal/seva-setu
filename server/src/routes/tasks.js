@@ -1,6 +1,7 @@
 const express = require('express');
 const prisma = require('../config/db');
 const auth = require('../middleware/auth');
+const { aiVerificationQueue } = require('../config/queue');
 
 const router = express.Router();
 
@@ -92,12 +93,23 @@ const multer = require('multer');
 const axios = require('axios');
 const FormData = require('form-data');
 const exifr = require('exifr');
+const imagekit = require('../config/imagekit');
 
 const UPLOADS_DIR = path.join(__dirname, '../../uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
-const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
+// Configure Multer for image uploads (streaming to disk to prevent OOM)
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, UPLOADS_DIR);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + '-' + (file.originalname?.replace(/\s+/g, '_') || 'upload.jpg'));
+  }
+});
+const upload = multer({ storage: storage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 
 /**
  * @route   PATCH /api/tasks/:id/complete
@@ -105,7 +117,6 @@ const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
  * @access  Private (Volunteer)
  */
 router.patch('/:id/complete', auth, upload.single('image'), async (req, res) => {
-  console.log(`[task-complete] Request received for Task ID: ${req.params.id}`);
   try {
     const task = await prisma.task.findUnique({ 
       where: { id: req.params.id },
@@ -113,225 +124,69 @@ router.patch('/:id/complete', auth, upload.single('image'), async (req, res) => 
     });
     if (!task) return res.status(404).json({ message: 'Task not found' });
 
-    // Fetch lat/lng for the need since Prisma geometry doesn't provide them directly
+    if (!req.file) {
+      return res.status(400).json({ message: 'Proof of completion image is required.' });
+    }
+
+    // Fetch lat/lng for the need for proximity verification in the worker
     const needLocation = await prisma.$queryRaw`
       SELECT ST_X(location::geometry) as lng, ST_Y(location::geometry) as lat 
       FROM needs WHERE id = ${task.needId}::uuid
     `;
     const { lat, lng } = needLocation[0] || { lat: 0, lng: 0 };
 
-    const errors = [];  // Geo-tag errors go first, then AI errors
-    let isVerified = false;
-    let imageUrl = null;
-
-    if (!req.file) {
-      return res.status(400).json({ message: 'Proof of completion image is required.' });
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // STEP 1: GEO-TAG CHECK (MANDATORY — runs for EVERY image)
-    // ═══════════════════════════════════════════════════════════
-    let geoTagPassed = false;
-    let photoHasGps = false;
-    let proximitySource = null; // 'photo_exif' | 'browser_gps' | null
-    try {
-      console.log(`[GEOTAG] Scanning metadata for: ${req.file.originalname} (${req.file.size} bytes)`);
-      console.log(`[GEOTAG] Target Incident Location: Lat=${lat}, Lng=${lng}`);
-
-      let photoLat = undefined;
-      let photoLng = undefined;
-
-      // Method 1: Full parse (most reliable for all formats)
-      try {
-        const metadata = await exifr.parse(req.file.buffer, { gps: true });
-        if (metadata && typeof metadata.latitude === 'number') {
-          photoLat = metadata.latitude;
-          photoLng = metadata.longitude;
-          photoHasGps = true;
-          console.log(`[GEOTAG] Photo EXIF GPS found: Lat=${photoLat}, Lng=${photoLng}`);
-        } else {
-          console.log(`[GEOTAG] Photo has NO GPS metadata embedded`);
-        }
-      } catch (e) {
-        console.log(`[GEOTAG] EXIF parse failed: ${e.message}`);
+    // --- 1. Queue the AI Verification Job ---
+    await aiVerificationQueue.add('verify-task', {
+      type: 'task',
+      id: task.id,
+      filePath: req.file.path,
+      fileName: req.file.filename,
+      metadata: { 
+        lat: Number(lat), 
+        lng: Number(lng),
+        browserLat: req.body.browserLat ? Number(req.body.browserLat) : null,
+        browserLng: req.body.browserLng ? Number(req.body.browserLng) : null
       }
-
-      // Browser-Side Live GPS Coordinates
-      const browserLat = req.body.browserLat ? Number(req.body.browserLat) : null;
-      const browserLng = req.body.browserLng ? Number(req.body.browserLng) : null;
-      
-      const toRad = (val) => (val * Math.PI) / 180;
-      const R = 6371; // Earth's radius in km
-
-      const getDistance = (lat1, lon1, lat2, lon2) => {
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                  Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
-                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      };
-
-      // PRIORITY 1: Use Photo EXIF GPS if available (most trustworthy)
-      if (photoHasGps) {
-        const photoDist = getDistance(photoLat, photoLng, Number(lat), Number(lng));
-        console.log(`[GEOTAG] Photo EXIF Distance: ${photoDist.toFixed(3)}km`);
-        if (photoDist <= 1.0) {
-          console.log(`[GEOTAG] ✅ GPS VERIFIED via Photo EXIF (< 1km)`);
-          geoTagPassed = true;
-          proximitySource = 'photo_exif';
-        } else {
-          console.log(`[GEOTAG] ❌ Photo GPS TOO FAR (${photoDist.toFixed(2)}km)`);
-          errors.push(`⚠️ LOCATION MISMATCH: Photo GPS shows you are ${photoDist.toFixed(2)}km away. You must be within 1km.`);
-        }
-      }
-      // PRIORITY 2: Fall back to Browser Live GPS
-      else if (browserLat !== null && browserLng !== null) {
-        const browserDist = getDistance(browserLat, browserLng, Number(lat), Number(lng));
-        console.log(`[GEOTAG] Browser Live GPS Distance: ${browserDist.toFixed(3)}km`);
-
-        if (browserDist <= 1.0) {
-          console.log(`[GEOTAG] ✅ PROXIMITY VERIFIED via Browser GPS (< 1km) — but photo has NO GPS tag`);
-          geoTagPassed = true;
-          proximitySource = 'browser_gps';
-        } else {
-          console.log(`[GEOTAG] ❌ Browser GPS TOO FAR (${browserDist.toFixed(2)}km)`);
-          errors.push(`⚠️ LOCATION MISMATCH: Your current location is ${browserDist.toFixed(2)}km away from the incident. You must be within 1km to submit proof.`);
-        }
-      } else {
-        // No GPS source available at all
-        console.log(`[GEOTAG] ❌ No GPS available (neither photo EXIF nor browser)`);
-        errors.push('⚠️ GEO-TAG MISSING: Could not verify your location. Please enable GPS and try again.');
-      }
-    } catch (exifErr) {
-      console.error(`[GEOTAG] ❌ FATAL ERROR:`, exifErr);
-      errors.push('⚠️ GEO-TAG ERROR: Could not read metadata from this image file.');
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // STEP 2: AI CONTENT CHECK (ALWAYS runs, even if geo-tag failed)
-    // ═══════════════════════════════════════════════════════════
-    try {
-      const form = new FormData();
-      form.append('file', req.file.buffer, { filename: req.file.originalname || 'proof.jpg' });
-      // Send as PROOF_OF_RELIEF so the AI knows this is a mission completion
-      form.append('upload_type', 'PROOF_OF_RELIEF');
-
-      const headers = form.getHeaders();
-      try {
-        headers['Content-Length'] = form.getLengthSync();
-      } catch (e) { /* ignore */ }
-
-      console.log(`[AI-CHECK] Sending image to AI for analysis (Type: ${task.need.needType})...`);
-      const aiResponse = await axios.post(
-        `${process.env.AI_SERVICE_URL || 'http://127.0.0.1:8000'}/verify-image`,
-        form,
-        { headers, timeout: 30000 }
-      );
-
-      const aiData = aiResponse.data;
-      const confidence = aiData.similarity || 0;
-
-      console.log(`[AI-CHECK] Result: "${aiData.top_match}" (confidence: ${(confidence * 100).toFixed(1)}%) | Verified: ${aiData.is_verified}`);
-
-      if (aiData.is_verified) {
-        isVerified = true;
-        console.log(`[AI-CHECK] ✅ VERDICT: CONTENT VERIFIED`);
-      } else {
-        const reason = aiData.reason || `AI detected "${aiData.top_match}" which does not match relief work.`;
-        console.log(`[AI-CHECK] ❌ VERDICT: REJECTED — ${reason}`);
-        errors.push(`🔍 IMAGE REJECTED: ${reason}`);
-      }
-    } catch (aiErr) {
-      // Log the FULL error so we can debug
-      const errDetail = aiErr.response
-        ? `HTTP ${aiErr.response.status}: ${JSON.stringify(aiErr.response.data)}`
-        : aiErr.message;
-      console.error(`[AI-CHECK] ❌ Service error:`, errDetail);
-      errors.push('🔍 AI SERVICE ERROR: The image verification service is temporarily unavailable. Please try again in a moment.');
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // FINAL DECISION: Reject if ANY errors exist
-    // ═══════════════════════════════════════════════════════════
-    if (errors.length > 0) {
-      console.log(`[FINAL] Task ${req.params.id} REJECTED with ${errors.length} error(s):`, errors);
-
-      // Determine the correct geo-tag label for the frontend badge
-      let geoTagLabel = 'FAILED';
-      if (geoTagPassed && proximitySource === 'photo_exif') {
-        geoTagLabel = 'GPS VERIFIED';
-      } else if (geoTagPassed && proximitySource === 'browser_gps') {
-        geoTagLabel = 'PROXIMITY OK';
-      } else if (!photoHasGps && !geoTagPassed) {
-        geoTagLabel = 'NO GPS';
-      }
-
-      return res.status(400).json({
-        message: 'Verification Failed',
-        errors: errors,
-        details: errors.join(' | '),
-        statusSummary: {
-          geoTag: geoTagLabel,
-          aiContent: isVerified ? 'PASSED' : 'FAILED'
-        }
-      });
-    }
-
-    // If we reach here, everything is verified
-    const fileName = `complete-${Date.now()}-${req.file.originalname.replace(/\s+/g, '_')}`;
-    const filePath = path.join(UPLOADS_DIR, fileName);
-    fs.writeFileSync(filePath, req.file.buffer);
-    imageUrl = `/uploads/${fileName}`;
-
-    await prisma.$transaction(async (tx) => {
-      // 1. Update task
-      await tx.task.update({
-        where: { id: req.params.id },
-        data: {
-          status: 'completed',
-          completedAt: new Date(),
-          completionImageUrl: imageUrl,
-          isCompletionVerified: true, // Now always true if we reach here
-          ...(req.body.browserLat && req.body.browserLng && {
-            checkInLat: Number(req.body.browserLat),
-            checkInLng: Number(req.body.browserLng),
-          })
-        },
-      });
-
-      // 2. Update need
-      await tx.need.update({
-        where: { id: task.needId },
-        data: { status: 'completed', updatedAt: new Date() },
-      });
-
-      // 3. Update volunteer stats
-      const volunteer = await tx.volunteer.findUnique({
-        where: { userId: task.assignedVolunteerId },
-        select: { tasksCompleted: true, completionRate: true },
-      });
-
-      if (volunteer) {
-        const newCompleted = (volunteer.tasksCompleted || 0) + 1;
-        const newRate = Math.min(1.0, (volunteer.completionRate || 0) + 0.10); // Always give the +10% verified bonus
-
-        await tx.volunteer.update({
-          where: { userId: task.assignedVolunteerId },
-          data: { tasksCompleted: newCompleted, completionRate: newRate },
-        });
-      }
-    }, { timeout: 20000, maxWait: 10000 });
-
-    res.json({ 
-      message: 'Verified Completion! Impact bonus awarded.',
-      isVerified: true
     });
+
+    res.status(202).json({
+      message: 'Task completion submitted and queued for verification.',
+      taskId: task.id,
+      status: 'verifying'
+    });
+
   } catch (err) {
-    console.error(err);
+    console.error('[TASKS] Complete error:', err);
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+/**
+ * @route   GET /api/tasks/:id/status
+ * @desc    Check the status of task completion verification
+ * @access  Private
+ */
+router.get('/:id/status', auth, async (req, res) => {
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true,
+        status: true,
+        isCompletionVerified: true,
+        completionImageUrl: true,
+        verificationResult: true
+      }
+    });
+
+    if (!task) return res.status(404).json({ message: 'Task not found' });
+
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching status' });
+  }
+});
+
 
 /**
  * @route   GET /api/tasks/my

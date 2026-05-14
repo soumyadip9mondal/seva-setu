@@ -180,6 +180,7 @@ function getSystemPrompt(role) {
 }
 
 function isJailbreakAttempt(message) {
+  if (typeof message !== 'string') return false;
   const lower = message.toLowerCase();
   const patterns = [
     'ignore previous instructions', 'pretend you are', 'act as', 'you are now', 
