@@ -4,9 +4,9 @@
 </p>
 
 <!-- ═══════════════════ ANIMATED TYPING SVG ═══════════════════ -->
-<p align="center">
+<p align="center" style="margin-top:-15px">
   <a href="https://git.io/typing-svg">
-    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=3000&pause=1000&color=4ADE80&center=true&vCenter=true&multiline=true&repeat=true&width=700&height=80&lines=Eliminating+%22Information+Chaos%22+in+Disaster+Management;Connecting+Distress+Signals+with+Verified+Relief;Powered+by+CLIP+Vision+AI+%2B+Geo-Spatial+Math" alt="Typing SVG" />
+    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=16&duration=3000&pause=1000&color=58A6FF&center=true&vCenter=true&repeat=true&width=650&height=100&lines=Eliminating+%22Information+Chaos%22+in+Disaster+Management;Connecting+Distress+Signals+with+Verified+Relief;Powered+by+CLIP+Vision+AI+%2B+Geo-Spatial+Math" alt="Typing SVG" />
   </a>
 </p>
 
