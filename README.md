@@ -114,15 +114,15 @@ Rigorous vetting system for volunteers requiring manual coordinator review and i
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                         CLIENT (React 19 + Vite)                     │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐            │
-│  │ Landing  │  │  Field   │  │Volunteer │  │Dashboard │            │
-│  │  Page    │  │ Terminal │  │ Mission  │  │ War Room │            │
-│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘            │
-│       │              │              │              │                  │
-│       └──────────────┴──────────────┴──────────────┘                  │
-│                              │                                        │
-│              ┌───────────────┤  Clerk Auth + Axios                    │
-│              │  IndexedDB    │  (Offline Queue)                       │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐              │
+│  │ Landing  │  │  Field   │  │Volunteer │  │Dashboard │              │
+│  │  Page    │  │ Terminal │  │ Mission  │  │ War Room │              │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘  └────┬─────┘              │
+│       │              │              │              │                 │
+│       └──────────────┴──────────────┴──────────────┘                 │
+│                              │                                       │
+│              ┌───────────────┤  Clerk Auth + Axios                   │
+│              │  IndexedDB    │  (Offline Queue)                      │
 └──────────────┴───────────────┴───────────────────────────────────────┘
                                │
                     ┌──────────▼──────────┐
@@ -148,9 +148,9 @@ Rigorous vetting system for volunteers requiring manual coordinator review and i
                        ┌───────┼────────┐
                        ▼       ▼        ▼
               ┌─────────┐ ┌────────┐ ┌──────────────┐
-              │PostgreSQL│ │ Redis  │ │  AI Service  │
-              │ + PostGIS│ │(Queue +│ │  (FastAPI)   │
-              │  (Neon)  │ │ Cache) │ │  CLIP ViT-L  │
+              │PostgreSQL│ │ Redis  │ │  AI Service │
+              │ + PostGIS│ │(Queue +│ │  (FastAPI)  │
+              │  (Neon)  │ │ Cache) │ │  CLIP ViT-L │
               └─────────┘ └────────┘ └──────────────┘
 ```
 
